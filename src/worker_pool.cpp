@@ -5,6 +5,10 @@
 
 namespace threadforge {
 
+namespace {
+thread_local const WorkerPool* t_active_worker_pool = nullptr;
+} // namespace
+
 WorkerPool::WorkerPool(std::size_t num_workers, WorkerRoutine routine)
     : num_workers_(num_workers), routine_(std::move(routine)) {
     if (num_workers_ == 0) {
@@ -16,6 +20,7 @@ WorkerPool::WorkerPool(std::size_t num_workers, WorkerRoutine routine)
 
     for (std::size_t i = 0; i < num_workers_; ++i) {
         threads_.emplace_back([this, i]() {
+            t_active_worker_pool = this;
             // Spin-wait briefly until all thread IDs have been recorded by the constructor
             while (!start_flag_.load(std::memory_order_acquire)) {
                 std::this_thread::yield();
@@ -23,6 +28,7 @@ WorkerPool::WorkerPool(std::size_t num_workers, WorkerRoutine routine)
             if (routine_) {
                 routine_(i);
             }
+            t_active_worker_pool = nullptr;
         });
         thread_ids_.push_back(threads_.back().get_id());
     }
@@ -35,14 +41,7 @@ WorkerPool::~WorkerPool() {
 }
 
 bool WorkerPool::is_current_thread_worker() const noexcept {
-    const auto current_id = std::this_thread::get_id();
-    // thread_ids_ is immutable after constructor completes; safe to read concurrently without locks
-    for (const auto& id : thread_ids_) {
-        if (id == current_id) {
-            return true;
-        }
-    }
-    return false;
+    return t_active_worker_pool == this;
 }
 
 void WorkerPool::join_all() {

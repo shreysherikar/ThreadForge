@@ -72,6 +72,8 @@ TEST(ExceptionHandlingTest, SubsequentTasksContinueAfterFailure) {
     EXPECT_EQ(fut1.status(), threadforge::TaskStatus::Failed);
     EXPECT_EQ(fut2.status(), threadforge::TaskStatus::Completed);
 
+    scheduler.wait_idle();
+
     const auto stats = scheduler.get_stats();
     EXPECT_EQ(stats.total_accepted_tasks, 2u);
     EXPECT_EQ(stats.completed_tasks, 1u);
