@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -16,12 +17,19 @@ TEST(PriorityQueueTest, HigherPriorityExecutesBeforeLowerPriority) {
     std::mutex order_mutex;
     std::vector<int> execution_order;
 
+    auto blocker_started = std::make_shared<std::promise<void>>();
+    auto blocker_started_fut = blocker_started->get_future().share();
+
     // Blocker task keeps the single worker busy while tasks are queued
-    auto blocker = scheduler.submit([&blocker_gate]() {
+    auto blocker = scheduler.submit([&blocker_gate, blocker_started]() mutable {
+        blocker_started->set_value();
         while (blocker_gate.load(std::memory_order_acquire)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
+
+    // Ensure worker is actively executing blocker before queuing candidate tasks
+    blocker_started_fut.wait();
 
     // Submit Low priority first, then High priority second
     scheduler.submit_with_priority(threadforge::TaskPriority::Low, [&]() {
@@ -51,11 +59,18 @@ TEST(PriorityQueueTest, EqualPriorityPreservesFIFOOrder) {
     std::mutex order_mutex;
     std::vector<int> execution_order;
 
-    auto blocker = scheduler.submit([&blocker_gate]() {
+    auto blocker_started = std::make_shared<std::promise<void>>();
+    auto blocker_started_fut = blocker_started->get_future().share();
+
+    auto blocker = scheduler.submit([&blocker_gate, blocker_started]() mutable {
+        blocker_started->set_value();
         while (blocker_gate.load(std::memory_order_acquire)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
+
+    // Ensure worker is actively executing blocker
+    blocker_started_fut.wait();
 
     // Submit 5 tasks with identical Normal priority
     for (int i = 0; i < 5; ++i) {
@@ -81,11 +96,18 @@ TEST(PriorityQueueTest, MultiLevelPriorityOrdering) {
     std::mutex order_mutex;
     std::vector<std::string> order;
 
-    auto blocker = scheduler.submit([&blocker_gate]() {
+    auto blocker_started = std::make_shared<std::promise<void>>();
+    auto blocker_started_fut = blocker_started->get_future().share();
+
+    auto blocker = scheduler.submit([&blocker_gate, blocker_started]() mutable {
+        blocker_started->set_value();
         while (blocker_gate.load(std::memory_order_acquire)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     });
+
+    // Ensure worker is actively executing blocker
+    blocker_started_fut.wait();
 
     // Submit in reverse priority order: Low, Normal, High, Critical
     scheduler.submit_named("Low", threadforge::TaskPriority::Low, [&]() {

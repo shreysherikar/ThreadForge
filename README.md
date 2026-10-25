@@ -1,6 +1,6 @@
 # ThreadForge ⚙️
 
-[![ThreadForge CI](https://github.com/threadforge/threadforge/actions/workflows/ci.yml/badge.svg)](https://github.com/threadforge/threadforge/actions/workflows/ci.yml)
+[![ThreadForge CI](https://github.com/shreysherikar/ThreadForge/actions/workflows/ci.yml/badge.svg)](https://github.com/shreysherikar/ThreadForge/actions/workflows/ci.yml)
 [![Standard](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 

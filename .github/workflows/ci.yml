@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgtest-dev
+          sudo apt-get install -y ninja-build clang libgtest-dev
           if [ "${{ matrix.compiler }}" = "gcc" ]; then
             echo "CC=gcc" >> $GITHUB_ENV
             echo "CXX=g++" >> $GITHUB_ENV
@@ -62,7 +62,7 @@ jobs:
           ./build/example_graceful_shutdown
 
       - name: Run Performance Benchmark
-        run: ./build/scheduler_benchmark --csv
+        run: ./build/scheduler_benchmark --csv --reps 1
 
   sanitizers:
     name: Linux / ${{ matrix.sanitizer }}

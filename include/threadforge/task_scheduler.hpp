@@ -121,18 +121,37 @@ public:
             try {
                 if constexpr (std::is_void_v<ReturnType>) {
                     task_callable();
-                    record->status.store(TaskStatus::Completed, std::memory_order_release);
+                    const auto finish_sys = std::chrono::system_clock::now();
+                    {
+                        std::lock_guard<std::mutex> lock(record->wait_mutex);
+                        record->finish_time = finish_sys;
+                        record->status.store(TaskStatus::Completed, std::memory_order_release);
+                        record->wait_cv.notify_all();
+                    }
                     task_promise->set_value();
                 } else {
                     auto result = task_callable();
-                    record->status.store(TaskStatus::Completed, std::memory_order_release);
+                    const auto finish_sys = std::chrono::system_clock::now();
+                    {
+                        std::lock_guard<std::mutex> lock(record->wait_mutex);
+                        record->finish_time = finish_sys;
+                        record->status.store(TaskStatus::Completed, std::memory_order_release);
+                        record->wait_cv.notify_all();
+                    }
                     task_promise->set_value(std::move(result));
                 }
             } catch (...) {
-                record->exception = std::current_exception();
-                record->status.store(TaskStatus::Failed, std::memory_order_release);
-                task_promise->set_exception(std::current_exception());
-                // Rethrow so the scheduler's worker can capture exception in TaskRecord
+                auto exc = std::current_exception();
+                const auto finish_sys = std::chrono::system_clock::now();
+                {
+                    std::lock_guard<std::mutex> lock(record->wait_mutex);
+                    record->finish_time = finish_sys;
+                    record->exception = exc;
+                    record->status.store(TaskStatus::Failed, std::memory_order_release);
+                    record->wait_cv.notify_all();
+                }
+                task_promise->set_exception(exc);
+                // Rethrow so the scheduler's worker can capture exception for stats accounting
                 throw;
             }
         };

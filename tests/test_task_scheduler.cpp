@@ -196,6 +196,7 @@ TEST(TaskSchedulerRegressionTest, ConcurrentGetTaskMetadataWhileTaskStarts) {
             if (meta.has_value()) {
                 EXPECT_EQ(meta->id, task_id);
             }
+            std::this_thread::yield();
         }
     });
 

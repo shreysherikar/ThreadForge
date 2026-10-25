@@ -50,6 +50,8 @@ int main() {
     // Retrieve result from healthy task
     std::cout << "Healthy task result: " << future_healthy.get() << "\n";
 
+    scheduler.wait_idle();
+
     const auto stats = scheduler.get_stats();
     std::cout << "Stats verification:\n"
               << "  Accepted:  " << stats.total_accepted_tasks << "\n"

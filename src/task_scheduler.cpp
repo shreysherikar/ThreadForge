@@ -139,22 +139,9 @@ void TaskScheduler::execute_task(const Task& task) {
         caught_exception = std::current_exception();
     }
 
-    const auto finish_sys = std::chrono::system_clock::now();
     const auto finish_steady = std::chrono::steady_clock::now();
     const auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         finish_steady - start_steady).count();
-
-    {
-        std::lock_guard<std::mutex> lock(record->wait_mutex);
-        record->finish_time = finish_sys;
-        if (caught_exception) {
-            record->exception = caught_exception;
-            record->status.store(TaskStatus::Failed, std::memory_order_release);
-        } else {
-            record->status.store(TaskStatus::Completed, std::memory_order_release);
-        }
-        record->wait_cv.notify_all();
-    }
 
     // Atomically transition running -> completed/failed under queue_mutex_ to preserve coherent stats invariant
     {
