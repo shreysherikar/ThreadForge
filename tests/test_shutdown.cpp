@@ -176,13 +176,14 @@ TEST(ShutdownTest, WaitIdleWakesUpOnNonDrainingShutdown) {
     threadforge::TaskScheduler scheduler(1);
     auto blocker_started_promise = std::make_shared<std::promise<void>>();
     auto blocker_started_future = blocker_started_promise->get_future().share();
-    auto release_blocker_promise = std::make_shared<std::promise<void>>();
-    auto release_blocker_future = release_blocker_promise->get_future().share();
+    std::atomic<bool> blocker_can_exit{false};
 
     // 1. Blocker task holds the single worker
-    auto blocker = scheduler.submit([blocker_started_promise, release_blocker_future]() mutable {
+    auto blocker = scheduler.submit([blocker_started_promise, &blocker_can_exit]() mutable {
         blocker_started_promise->set_value();
-        release_blocker_future.wait();
+        while (!blocker_can_exit.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     });
 
     // Wait until blocker is actively running
@@ -200,10 +201,18 @@ TEST(ShutdownTest, WaitIdleWakesUpOnNonDrainingShutdown) {
         wait_idle_completed.store(true, std::memory_order_release);
     });
 
-    // 4. Main thread triggers immediate shutdown(false), cancelling queued tasks and notifying drain_cv_
-    release_blocker_promise->set_value();
+    // 4. Thread C releases the blocker only after shutdown(false) cancels the queued tasks
+    std::thread releaser([&]() {
+        while (scheduler.get_stats().cancelled_tasks < 5) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        blocker_can_exit.store(true, std::memory_order_release);
+    });
+
+    // 5. Main thread triggers immediate shutdown(false), cancelling queued tasks
     scheduler.shutdown(false);
 
+    releaser.join();
     wait_idle_thread.join();
     EXPECT_TRUE(wait_idle_completed.load(std::memory_order_acquire));
 
